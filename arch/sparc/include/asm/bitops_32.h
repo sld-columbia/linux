@@ -18,6 +18,17 @@
 #error only <linux/bitops.h> can be included directly
 #endif
 
+#ifdef CONFIG_SPARC_LEON_CAS
+
+int test_and_set_bit(unsigned long nr, volatile unsigned long *addr);
+int test_and_clear_bit(unsigned long nr, volatile unsigned long *addr);
+int test_and_change_bit(unsigned long nr, volatile unsigned long *addr);
+void set_bit(unsigned long nr, volatile unsigned long *addr);
+void clear_bit(unsigned long nr, volatile unsigned long *addr);
+void change_bit(unsigned long nr, volatile unsigned long *addr);
+
+#else /* CONFIG_SPARC_LEON_CAS */
+
 unsigned long ___set_bit(unsigned long *addr, unsigned long mask);
 unsigned long ___clear_bit(unsigned long *addr, unsigned long mask);
 unsigned long ___change_bit(unsigned long *addr, unsigned long mask);
@@ -87,6 +98,8 @@ static inline void change_bit(unsigned long nr, volatile unsigned long *addr)
 
 	(void) ___change_bit(ADDR, mask);
 }
+
+#endif /* CONFIG_SPARC_LEON_CAS */
 
 #include <asm-generic/bitops/non-atomic.h>
 

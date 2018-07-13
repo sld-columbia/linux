@@ -11,14 +11,34 @@
 #ifndef __ARCH_SPARC_CMPXCHG__
 #define __ARCH_SPARC_CMPXCHG__
 
+#ifdef CONFIG_SPARC_LEON_CAS
+
+static inline unsigned long xchg_u32(__volatile__ unsigned long *m, unsigned long val)
+{
+	__asm__ __volatile__("swap [%2], %0"
+			     : "=&r" (val)
+			     : "0" (val), "r" (m)
+			     : "memory");
+	return val;
+}
+
+#else /* CONFIG_SPARC_LEON_CAS */
+
 unsigned long __xchg_u32(volatile u32 *m, u32 new);
+
+#endif /* CONFIG_SPARC_LEON_CAS */
+
 void __xchg_called_with_bad_pointer(void);
 
 static inline unsigned long __xchg(unsigned long x, __volatile__ void * ptr, int size)
 {
 	switch (size) {
 	case 4:
+#ifdef CONFIG_SPARC_LEON_CAS
+		return xchg_u32(ptr, x);
+#else
 		return __xchg_u32(ptr, x);
+#endif
 	}
 	__xchg_called_with_bad_pointer();
 	return x;
@@ -37,8 +57,23 @@ static inline unsigned long __xchg(unsigned long x, __volatile__ void * ptr, int
 
 /* bug catcher for when unsupported size is used - won't link */
 void __cmpxchg_called_with_bad_pointer(void);
+
 /* we only need to support cmpxchg of a u32 on sparc */
+#ifdef CONFIG_SPARC_LEON_CAS
+static inline unsigned long
+__cmpxchg_u32(volatile int *m, int old, int new)
+{
+	__asm__ __volatile__("casa [%2] 0xb, %3, %0"
+			     : "=&r" (new)
+			     : "0" (new), "r" (m), "r" (old)
+			     : "memory");
+
+	return new;
+}
+
+#else /* CONFIG_SPARC_LEON_CAS */
 unsigned long __cmpxchg_u32(volatile u32 *m, u32 old, u32 new_);
+#endif /* CONFIG_SPARC_LEON_CAS */
 
 /* don't worry...optimizer will get rid of most of this */
 static inline unsigned long

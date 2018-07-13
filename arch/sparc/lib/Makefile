@@ -43,5 +43,7 @@ lib-$(CONFIG_SPARC64) += copy_in_user.o memmove.o
 lib-$(CONFIG_SPARC64) += mcount.o ipcsum.o xor.o hweight.o ffs.o
 
 obj-$(CONFIG_SPARC64) += iomap.o
-obj-$(CONFIG_SPARC32) += atomic32.o ucmpdi2.o
+obj-$(CONFIG_SPARC32) += ucmpdi2.o
+obj-$(CONFIG_SPARC32_NO_CAS) += atomic32.o
+obj-$(CONFIG_SPARC_LEON_CAS) += atomic_cas_32.o bitops_cas_32.o
 obj-$(CONFIG_SPARC64) += PeeCeeI.o

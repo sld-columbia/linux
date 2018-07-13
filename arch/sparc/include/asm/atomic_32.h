@@ -18,6 +18,56 @@
 #include <asm-generic/atomic64.h>
 
 #define ATOMIC_INIT(i)  { (i) }
+#define atomic_read(v)          ACCESS_ONCE((v)->counter)
+
+#ifdef CONFIG_SPARC_LEON_CAS
+
+#define ATOMIC_OP(op)							\
+void atomic_##op(int, atomic_t *);
+
+#define ATOMIC_OP_RETURN(op)						\
+int atomic_##op##_return(int, atomic_t *);
+
+#define ATOMIC_FETCH_OP(op)						\
+int atomic_fetch_##op(int, atomic_t *);
+
+#define ATOMIC_OPS(op) ATOMIC_OP(op) ATOMIC_OP_RETURN(op) ATOMIC_FETCH_OP(op)
+
+ATOMIC_OPS(add)
+ATOMIC_OPS(sub)
+
+#undef ATOMIC_OPS
+#define ATOMIC_OPS(op) ATOMIC_OP(op) ATOMIC_FETCH_OP(op)
+
+ATOMIC_OPS(and)
+ATOMIC_OPS(or)
+ATOMIC_OPS(xor)
+
+#undef ATOMIC_OPS
+#undef ATOMIC_FETCH_OP
+#undef ATOMIC_OP_RETURN
+#undef ATOMIC_OP
+
+#define atomic_cmpxchg(v, o, n) (cmpxchg(&((v)->counter), (o), (n)))
+#define atomic_xchg(v, new) (xchg(&((v)->counter), new))
+#define atomic_set(v, i)	WRITE_ONCE(((v)->counter), (i))
+
+static inline int __atomic_add_unless(atomic_t *v, int a, int u)
+{
+	int c, old;
+	c = atomic_read(v);
+	for (;;) {
+		if (unlikely(c == (u)))
+			break;
+		old = atomic_cmpxchg((v), c, c + (a));
+		if (likely(old == c))
+			break;
+		c = old;
+	}
+	return c;
+}
+
+#else /* CONFIG_SPARC_LEON_CAS */
 
 int atomic_add_return(int, atomic_t *);
 int atomic_fetch_add(int, atomic_t *);
@@ -29,7 +79,7 @@ int atomic_xchg(atomic_t *, int);
 int __atomic_add_unless(atomic_t *, int, int);
 void atomic_set(atomic_t *, int);
 
-#define atomic_read(v)          ACCESS_ONCE((v)->counter)
+#endif /* CONFIG_SPARC_LEON_CAS */
 
 #define atomic_add(i, v)	((void)atomic_add_return( (int)(i), (v)))
 #define atomic_sub(i, v)	((void)atomic_add_return(-(int)(i), (v)))
