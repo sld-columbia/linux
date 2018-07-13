@@ -40,6 +40,10 @@
 #define UART_DUMMY_RSR_RX	0x8000	/* for ignore all read */
 
 static void apbuart_tx_chars(struct uart_port *port);
+#ifdef CONFIG_CONSOLE_POLL
+static int apbuart_poll_get_char(struct uart_port *port);
+static void apbuart_poll_put_char(struct uart_port *port, unsigned char ch);
+#endif
 
 static void apbuart_stop_tx(struct uart_port *port)
 {
@@ -341,6 +345,10 @@ static struct uart_ops grlib_apbuart_ops = {
 	.request_port = apbuart_request_port,
 	.config_port = apbuart_config_port,
 	.verify_port = apbuart_verify_port,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char = apbuart_poll_get_char,
+	.poll_put_char = apbuart_poll_put_char,
+#endif
 };
 
 static struct uart_port grlib_apbuart_ports[UART_NR];
@@ -416,7 +424,7 @@ static void apbuart_flush_fifo(struct uart_port *port)
 /* Console driver, if enabled                                               */
 /* ======================================================================== */
 
-#ifdef CONFIG_SERIAL_GRLIB_GAISLER_APBUART_CONSOLE
+#if defined(CONFIG_SERIAL_GRLIB_GAISLER_APBUART_CONSOLE) || defined(CONFIG_CONSOLE_POLL)
 
 static void apbuart_console_putchar(struct uart_port *port, int ch)
 {
@@ -426,6 +434,29 @@ static void apbuart_console_putchar(struct uart_port *port, int ch)
 	} while (!UART_TX_READY(status));
 	UART_PUT_CHAR(port, ch);
 }
+
+#endif
+
+#ifdef CONFIG_CONSOLE_POLL
+
+static int apbuart_poll_get_char(struct uart_port *port)
+{
+	int c = NO_POLL_CHAR;
+	unsigned int status = UART_GET_STATUS(port);
+	if (status & UART_STATUS_DR) {
+		c = UART_GET_CHAR(port);
+	}
+	return c;
+}
+
+static void apbuart_poll_put_char(struct uart_port *port, unsigned char ch)
+{
+	apbuart_console_putchar(port, ch);
+}
+
+#endif
+
+#ifdef CONFIG_SERIAL_GRLIB_GAISLER_APBUART_CONSOLE
 
 static void
 apbuart_console_write(struct console *co, const char *s, unsigned int count)
