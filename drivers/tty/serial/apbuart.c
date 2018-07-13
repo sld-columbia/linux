@@ -366,7 +366,7 @@ static int apbuart_scan_fifo_size(struct uart_port *port, int portnumber)
 
 	UART_PUT_CTRL(port, ctrl | UART_CTRL_TE);
 
-	while (!UART_TX_READY(UART_GET_STATUS(port)))
+	while ((!UART_TX_READY(UART_GET_STATUS(port))) && loop < 0x7fffff)
 		loop++;
 
 	/*
