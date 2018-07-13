@@ -1093,6 +1093,7 @@ fpsave:
 	st	%fsr, [%o1]	! this can trap on us if fpu is in bogon state
 	ld	[%o1], %g1
 	set	0x2000, %g4
+	set     0x1c000, %g5
 	andcc	%g1, %g4, %g0
 	be	2f
 	 mov	0, %g2
@@ -1103,6 +1104,10 @@ fpsave:
 fpsave_magic:
 	st	%fsr, [%o1]
 	ld	[%o1], %g3
+	andn    %g3, %g5, %g3 /* ftt gets cleared on stfsr for GRFPU... */
+	and     %g1, %g5, %g1
+	or      %g1, %g3, %g3
+	st      %g3, [%o1]    /* ... so set ftt field from first fsr read */
 	andcc	%g3, %g4, %g0
 	add	%g2, 1, %g2
 	bne	1b
@@ -1139,8 +1144,9 @@ fpsave_catch:
 	 st	%fsr, [%o1]
 
 fpsave_catch2:
+	st	%fsr, [%o1] /* In this case, this is the first successful fsr read */
 	b	fpsave + 4
-	 st	%fsr, [%o1]
+	 ld	[%o1], %g1 /* so take care of it for GRFPU ftt field handling */
 
 	/* void fpload(unsigned long *fpregs, unsigned long *fsr); */
 
