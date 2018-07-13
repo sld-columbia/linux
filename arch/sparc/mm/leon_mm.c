@@ -182,7 +182,7 @@ ready:
 
 void leon_flush_icache_all(void)
 {
-	__asm__ __volatile__(" flush ");	/*iflush*/
+	__asm__ __volatile__(".align 32\nflush\n.align 32\n");	/*iflush*/
 }
 
 void leon_flush_dcache_all(void)
@@ -200,7 +200,7 @@ void leon_flush_pcache_all(struct vm_area_struct *vma, unsigned long page)
 
 void leon_flush_cache_all(void)
 {
-	__asm__ __volatile__(" flush ");	/*iflush*/
+	__asm__ __volatile__(".align 32\nflush\n.align 32\n");	/*iflush*/
 	__asm__ __volatile__("sta %%g0, [%%g0] %0\n\t" : :
 			     "i"(ASI_LEON_DFLUSH) : "memory");
 }
