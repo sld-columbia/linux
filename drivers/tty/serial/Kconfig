@@ -1319,6 +1319,18 @@ config SERIAL_GRLIB_GAISLER_APBUART_CONSOLE
 	help
 	Support for running a console on the GRLIB APBUART
 
+config SERIAL_GRLIB_GAISLER_APBUART_GRMON_VIRTUAL
+	bool "Virtual channel created by GRMON to communicate with KGDB"
+	depends on SERIAL_GRLIB_GAISLER_APBUART=y
+	default y
+	help
+	Add support for a virtual GRMON<->KGDB channel that
+	is created using share memory polling by GRMON. Start
+	GRMON with the option "-vchannel" to enable polling. This
+	feature enables connecting to KGDB without having an hardware
+	serial connection, but using GRMON as an tunnel. Also
+	enable KGDB_SERIAL_CONSOLE to use this feature.
+
 config SERIAL_ALTERA_JTAGUART
 	tristate "Altera JTAG UART support"
 	select SERIAL_CORE

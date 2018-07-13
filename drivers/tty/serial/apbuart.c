@@ -119,7 +119,6 @@ static void apbuart_rx_chars(struct uart_port *port)
 
 		uart_insert_char(port, rsr, UART_STATUS_OE, ch, flag);
 
-
 	      ignore_char:
 		status = UART_GET_STATUS(port);
 	}
@@ -351,6 +350,83 @@ static struct uart_ops grlib_apbuart_ops = {
 #endif
 };
 
+#undef CONFIG_SERIAL_GRLIB_GAISLER_APBUART_GRMON_VIRTUAL_HAS
+#if defined(CONFIG_SERIAL_GRLIB_GAISLER_APBUART_GRMON_VIRTUAL) && defined(CONFIG_SPARC_LEON) && defined(CONFIG_CONSOLE_POLL)
+#define CONFIG_SERIAL_GRLIB_GAISLER_APBUART_GRMON_VIRTUAL_HAS
+#include <asm/leon.h>
+
+/*
+ * Use a memory array that is continuously read/written by GRMON
+ * as a communication channel. GRMON will test for the existence
+ * of symbol apbuart_grmon_vchannel. If present the "shared memory"
+ * of apbuart_grmon_vchannel will be used to comunicate with linux.
+ * apbuart_grmon_vchannel is only used for KGDB polling communication.
+ */
+unsigned int apbuart_grmon_vchannel[4] = { 0, 0, 0, 0 };
+
+EXPORT_SYMBOL(apbuart_grmon_vchannel);
+
+static void apbuart_set_termios_v(struct uart_port *port,
+				  struct ktermios *termios,
+				  struct ktermios *old)
+{
+	return;
+}
+
+unsigned char apbuart_poll_get_char_v_b[4];
+unsigned char apbuart_poll_get_char_v_c = 0;
+static int apbuart_poll_get_char_v(struct uart_port *port)
+{
+	int c = NO_POLL_CHAR, cnt, i;
+	if (apbuart_poll_get_char_v_c) {
+		apbuart_poll_get_char_v_c--;
+		c = apbuart_poll_get_char_v_b[0] & 0xff;
+		for (i = 0; i < apbuart_poll_get_char_v_c; i++) {
+			apbuart_poll_get_char_v_b[i] =
+			    apbuart_poll_get_char_v_b[i + 1];
+		}
+	}
+
+	/*
+	 * poll for new char GRMON from. When grmon has a new char it
+	 * will set write it into apbuart_grmon_vchannel[0] and then
+	 * set apbuart_grmon_vchannel[1]
+	 */
+	else if ((cnt = LEON3_BYPASS_LOAD_PA(__pa(&apbuart_grmon_vchannel[1])))) {
+		unsigned int ar =
+		    LEON3_BYPASS_LOAD_PA(__pa(&apbuart_grmon_vchannel[0]));
+		LEON_BYPASS_STORE_PA(__pa(&apbuart_grmon_vchannel[1]), 0);
+		c = ar & 0xff;
+		for (i = 1; i < cnt; i++) {
+			apbuart_poll_get_char_v_b[apbuart_poll_get_char_v_c++] =
+			    (ar >> (8 * i)) & 0xff;
+		}
+	}
+
+	return c;
+}
+static void apbuart_console_putchar_v(struct uart_port *port, unsigned char ch)
+{
+	/*
+	 * poll for GRMON readout. When grmon has read apbuart_grmon_vchannel[3]
+	 * it will clear apbuart_grmon_vchannel[2]
+	 */
+	while (LEON3_BYPASS_LOAD_PA(__pa(&apbuart_grmon_vchannel[2]))) {
+	}
+	LEON_BYPASS_STORE_PA(__pa(&apbuart_grmon_vchannel[3]), ch & 0xff);
+	LEON_BYPASS_STORE_PA(__pa(&apbuart_grmon_vchannel[2]), 1);
+	return;
+}
+
+static struct uart_ops grlib_apbuart_v_ops = {
+	.set_termios = apbuart_set_termios_v,
+	.poll_get_char = apbuart_poll_get_char_v,
+	.poll_put_char = apbuart_console_putchar_v,
+};
+
+static struct uart_port grlib_apbuart_vport;
+#endif
+
 static struct uart_port grlib_apbuart_ports[UART_NR];
 static struct device_node *grlib_apbuart_nodes[UART_NR];
 
@@ -418,7 +494,6 @@ static void apbuart_flush_fifo(struct uart_port *port)
 	for (i = 0; i < port->fifosize; i++)
 		UART_GET_CHAR(port);
 }
-
 
 /* ======================================================================== */
 /* Console driver, if enabled                                               */
@@ -547,7 +622,6 @@ static struct console grlib_apbuart_console = {
 	.data = &grlib_apbuart_driver,
 };
 
-
 static int grlib_apbuart_configure(void);
 
 static int __init apbuart_console_init(void)
@@ -575,7 +649,6 @@ static struct uart_driver grlib_apbuart_driver = {
 	.cons = APBUART_CONSOLE,
 };
 
-
 /* ======================================================================== */
 /* OF Platform Driver                                                       */
 /* ======================================================================== */
@@ -594,12 +667,12 @@ static int apbuart_probe(struct platform_device *op)
 	port->dev = &op->dev;
 	port->irq = op->archdata.irqs[0];
 
-	uart_add_one_port(&grlib_apbuart_driver, (struct uart_port *) port);
+	uart_add_one_port(&grlib_apbuart_driver, (struct uart_port *)port);
 
-	apbuart_flush_fifo((struct uart_port *) port);
+	apbuart_flush_fifo((struct uart_port *)port);
 
 	printk(KERN_INFO "grlib-apbuart at 0x%llx, irq %d\n",
-	       (unsigned long long) port->mapbase, port->irq);
+	       (unsigned long long)port->mapbase, port->irq);
 	return 0;
 }
 
@@ -637,7 +710,7 @@ static int __init grlib_apbuart_configure(void)
 
 		ampopts = of_get_property(np, "ampopts", NULL);
 		if (ampopts && (*ampopts == 0))
-			continue; /* Ignore if used by another OS instance */
+			continue;	/* Ignore if used by another OS instance */
 		regs = of_get_property(np, "reg", NULL);
 		/* Frequency of APB Bus is frequency of UART */
 		freq_hz = of_get_property(np, "freq", NULL);
@@ -652,20 +725,34 @@ static int __init grlib_apbuart_configure(void)
 		port = &grlib_apbuart_ports[line];
 
 		port->mapbase = addr;
-		port->membase = ioremap(addr, sizeof(struct grlib_apbuart_regs_map));
+		port->membase =
+		    ioremap(addr, sizeof(struct grlib_apbuart_regs_map));
 		port->irq = 0;
 		port->iotype = UPIO_MEM;
 		port->ops = &grlib_apbuart_ops;
 		port->flags = UPF_BOOT_AUTOCONF;
 		port->line = line;
 		port->uartclk = *freq_hz;
-		port->fifosize = apbuart_scan_fifo_size((struct uart_port *) port, line);
+		port->fifosize =
+		    apbuart_scan_fifo_size((struct uart_port *)port, line);
 		line++;
 
 		/* We support maximum UART_NR uarts ... */
 		if (line == UART_NR)
 			break;
 	}
+
+#ifdef CONFIG_SERIAL_GRLIB_GAISLER_APBUART_GRMON_VIRTUAL_HAS
+	grlib_apbuart_vport.mapbase = 0;
+	grlib_apbuart_vport.membase = 0;
+	grlib_apbuart_vport.irq = 0;
+	grlib_apbuart_vport.iotype = UPIO_MEM;
+	grlib_apbuart_vport.ops = &grlib_apbuart_v_ops;
+	grlib_apbuart_vport.flags = UPF_BOOT_AUTOCONF;
+	grlib_apbuart_vport.line = line;
+	grlib_apbuart_vport.fifosize = 0;
+	line++;
+#endif
 
 	grlib_apbuart_driver.nr = grlib_apbuart_port_nr = line;
 	return line ? 0 : -ENODEV;
@@ -698,6 +785,17 @@ static int __init grlib_apbuart_init(void)
 		uart_unregister_driver(&grlib_apbuart_driver);
 		return ret;
 	}
+#ifdef CONFIG_SERIAL_GRLIB_GAISLER_APBUART_GRMON_VIRTUAL_HAS
+
+	/* register an extra virtual port that is used for
+	 * GRMON<->KGDB communication */
+	uart_add_one_port(&grlib_apbuart_driver,
+			  (struct uart_port *)&grlib_apbuart_vport);
+	printk(KERN_INFO
+	       "apbuart: virtual KGDB channel for grmon, use cmdline arg \"kgdboc=kms,ttyS%d,38400\".\napbuart: Use option \"-vchannel\" when starting GRMON.\napbuart: apbuart_grmon_vchannel at pa:0x%x\n",
+	       grlib_apbuart_vport.line, (int)__pa(&apbuart_grmon_vchannel));
+
+#endif
 
 	return ret;
 }
