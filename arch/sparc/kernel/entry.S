@@ -774,23 +774,19 @@ SUN_PI_(lda	[%l5] ASI_M_MMUREGS, %l6)	! read sfar first
 LEON_PI(lda	[%l4] ASI_LEON_MMUREGS, %l5)	! read sfsr last
 SUN_PI_(lda	[%l4] ASI_M_MMUREGS, %l5)	! read sfsr last
 
-	andn	%l6, 0xfff, %l6
-	srl	%l5, 6, %l5			! and encode all info into l7
-
-	and	%l5, 2, %l5
-	or	%l5, %l6, %l6
-
-	or	%l6, %l7, %l7			! l7 = [addr,write,txtfault]
+	and	%l5, 0x0e0, %l5		! save AT
+	andn	%l6, 0xfff, %l6		! save faulting page
+	or	%l5, %l6, %l6		! and encode all info into l7
+	or	%l6, %l7, %l7		! l7 = [addr,AT,txtfault]
 
 	SAVE_ALL
 
-	mov	%l7, %o1
-	mov	%l7, %o2
-	and	%o1, 1, %o1		! arg2 = text_faultp
-	mov	%l7, %o3
-	and	%o2, 2, %o2		! arg3 = writep
-	andn	%o3, 0xfff, %o3		! arg4 = faulting address
-
+	andcc	%l7, 1, %o1		! arg2 = text_faultp
+	and	%l7, 0x80, %o2		! arg3 = writep from AT
+	bne	1f
+	 mov	%l1, %o3		! arg4 = faulting TEXT address (PC)
+	andn	%l7, 0xfff, %o3		! arg4 = faulting DATA address
+1:
 	wr	%l0, PSR_ET, %psr
 	WRITE_PAUSE
 
