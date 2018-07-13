@@ -98,6 +98,12 @@
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #endif
+#if defined(CONFIG_SPARC_LEON)
+#ifndef NO_IRQ
+#define NO_IRQ  0
+#endif
+#include <linux/of_irq.h>
+#endif /* CONFIG_SPARC_LEON */
 
 MODULE_AUTHOR("Grant Likely <grant.likely@secretlab.ca>");
 MODULE_DESCRIPTION("Xilinx SystemACE device driver");
@@ -1160,8 +1166,9 @@ static int ace_probe(struct platform_device *dev)
 	dev_dbg(&dev->dev, "ace_probe(%p)\n", dev);
 
 	/* device id and bus width */
-	if (of_property_read_u32(dev->dev.of_node, "port-number", &id))
+	if (of_property_read_u32(dev->dev.of_node, "port-number", &id) || id > 25)
 		id = 0;
+
 	if (of_find_property(dev->dev.of_node, "8-bit", NULL))
 		bus_width = ACE_BUS_WIDTH_8;
 
@@ -1192,6 +1199,8 @@ static const struct of_device_id ace_of_match[] = {
 	{ .compatible = "xlnx,opb-sysace-1.00.c", },
 	{ .compatible = "xlnx,xps-sysace-1.00.a", },
 	{ .compatible = "xlnx,sysace", },
+	{ .name = "GAISLER_GRACECTRL", },
+	{ .name = "01_067", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, ace_of_match);
