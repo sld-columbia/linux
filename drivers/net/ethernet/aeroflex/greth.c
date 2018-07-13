@@ -1331,7 +1331,7 @@ static int greth_mdio_init(struct greth_private *greth)
 	phy_start(ndev->phydev);
 
 	/* If Ethernet debug link is used make autoneg happen right away */
-	if (greth->edcl && greth_edcl == 1) {
+	if (greth->edcl) {
 		phy_start_aneg(ndev->phydev);
 		timeout = jiffies + 6*HZ;
 		while (!phy_aneg_done(ndev->phydev) &&
@@ -1395,20 +1395,27 @@ static int greth_of_probe(struct platform_device *ofdev)
 	dev_set_drvdata(greth->dev, dev);
 	SET_NETDEV_DEV(dev, greth->dev);
 
-	if (netif_msg_probe(greth))
-		dev_dbg(greth->dev, "resetting controller.\n");
+	/* Check if we have EDCL that is not disabled */
+	tmp = GRETH_REGLOAD(regs->control);
+	greth->have_edcl = !!(tmp & GRETH_CTRL_EA);
+	greth->edcl = greth->have_edcl && !(tmp & GRETH_CTRL_ED) && greth_edcl;
 
-	/* Reset the controller. */
-	GRETH_REGSAVE(regs->control, GRETH_RESET);
+	if (!greth->edcl) {
+		if (netif_msg_probe(greth))
+			dev_dbg(greth->dev, "resetting controller.\n");
 
-	/* Wait for MAC to reset itself */
-	timeout = jiffies + HZ/100;
-	while (GRETH_REGLOAD(regs->control) & GRETH_RESET) {
-		if (time_after(jiffies, timeout)) {
-			err = -EIO;
-			if (netif_msg_probe(greth))
-				dev_err(greth->dev, "timeout when waiting for reset.\n");
-			goto error2;
+		/* Reset the controller. */
+		GRETH_REGSAVE(regs->control, GRETH_RESET);
+
+		/* Wait for MAC to reset itself */
+		timeout = jiffies + HZ/100;
+		while (GRETH_REGLOAD(regs->control) & GRETH_RESET) {
+			if (time_after(jiffies, timeout)) {
+				err = -EIO;
+				if (netif_msg_probe(greth))
+					dev_err(greth->dev, "timeout when waiting for reset.\n");
+				goto error2;
+			}
 		}
 	}
 
@@ -1422,12 +1429,14 @@ static int greth_of_probe(struct platform_device *ofdev)
 	/* Check for multicast capability */
 	greth->multicast = (tmp >> 25) & 1;
 
-	greth->edcl = (tmp >> 31) & 1;
-
 	/* If we have EDCL we disable the EDCL speed-duplex FSM so
 	 * it doesn't interfere with the software */
-	if (greth->edcl != 0)
+	if (greth->have_edcl)
 		GRETH_REGORIN(regs->control, GRETH_CTRL_DISDUPLEX);
+
+	/* Disable EDCL if it should not be used */
+	if (greth->have_edcl && !greth->edcl)
+		GRETH_REGORIN(regs->control, GRETH_CTRL_ED);
 
 	/* Check if MAC can handle MDIO interrupts */
 	greth->mdio_int_en = (tmp >> 26) & 1;

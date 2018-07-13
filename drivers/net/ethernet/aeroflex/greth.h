@@ -15,6 +15,9 @@
 #define GRETH_CTRL_PSTATIEN   0x400
 #define GRETH_CTRL_MCEN       0x800
 #define GRETH_CTRL_DISDUPLEX  0x1000
+#define GRETH_CTRL_ED         0x4000
+#define GRETH_CTRL_EA         0x80000000
+
 #define GRETH_STATUS_PHYSTAT  0x100
 
 #define GRETH_BD_EN 0x800
@@ -134,6 +137,7 @@ struct greth_private {
 	u8 multicast;
 	u8 gbit_mac;
 	u8 mdio_int_en;
+	u8 have_edcl;
 	u8 edcl;
 };
 
