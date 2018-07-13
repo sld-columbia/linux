@@ -341,7 +341,7 @@ int __mdiobus_register(struct mii_bus *bus, struct module *owner)
 	}
 
 	bus->state = MDIOBUS_REGISTERED;
-	pr_info("%s: probed\n", bus->name);
+	pr_debug("%s: probed\n", bus->name);
 	return 0;
 
 error:
