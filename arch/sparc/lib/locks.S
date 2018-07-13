@@ -23,13 +23,21 @@
 ___rw_read_enter_spin_on_wlock:
 	orcc	%g2, 0x0, %g0
 	be,a	___rw_read_enter
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	 ldstub	[%g1 + 3], %g2
+#else
+	 ldstuba	[%g1 + %g3]1, %g2 /* ASI_LEON23_DCACHE_MISS, g3=3 */
+#endif
 	b	___rw_read_enter_spin_on_wlock
 	 ldub	[%g1 + 3], %g2
 ___rw_read_try_spin_on_wlock:
 	andcc	%g2, 0xff, %g0
 	be,a	___rw_read_try
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	 ldstub	[%g1 + 3], %g2
+#else
+	 ldstuba	[%g1 + %g3]1, %g2 /* ASI_LEON23_DCACHE_MISS, g3=3 */
+#endif
 	xnorcc	%g2, 0x0, %o0	/* if g2 is ~0, set o0 to 0 and bugger off */
 	bne,a	___rw_read_enter_spin_on_wlock
 	 ld	[%g1], %g2
@@ -38,13 +46,21 @@ ___rw_read_try_spin_on_wlock:
 ___rw_read_exit_spin_on_wlock:
 	orcc	%g2, 0x0, %g0
 	be,a	___rw_read_exit
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	 ldstub	[%g1 + 3], %g2
+#else
+	 ldstuba	[%g1 + %g3]1, %g2 /* ASI_LEON23_DCACHE_MISS, g3=3 */
+#endif
 	b	___rw_read_exit_spin_on_wlock
 	 ldub	[%g1 + 3], %g2
 ___rw_write_enter_spin_on_wlock:
 	orcc	%g2, 0x0, %g0
 	be,a	___rw_write_enter
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	 ldstub	[%g1 + 3], %g2
+#else
+	 ldstuba	[%g1 + %g3]1, %g2 /* ASI_LEON23_DCACHE_MISS, g3=3 */
+#endif
 	b	___rw_write_enter_spin_on_wlock
 	 ld	[%g1], %g2
 

@@ -102,8 +102,13 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
  */
 static inline unsigned long srmmu_swap(unsigned long *addr, unsigned long value)
 {
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__("swap [%2], %0" :
 			"=&r" (value) : "0" (value), "r" (addr) : "memory");
+#else
+	__asm__ __volatile__("swapa [%2] 1, %0" :
+			"=&r" (value) : "0" (value), "r" (addr) : "memory");
+#endif
 	return value;
 }
 

@@ -23,7 +23,11 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 {
 	__asm__ __volatile__(
 	"\n1:\n\t"
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	"ldstub	[%0], %%g2\n\t"
+#else
+	"ldstuba	[%0] 1, %%g2\n\t" /* ASI_LEON23_DCACHE_MISS */
+#endif
 	"orcc	%%g2, 0x0, %%g0\n\t"
 	"bne,a	2f\n\t"
 	" ldub	[%0], %%g2\n\t"
@@ -42,7 +46,11 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 static inline int arch_spin_trylock(arch_spinlock_t *lock)
 {
 	unsigned int result;
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__("ldstub [%1], %0"
+#else
+	__asm__ __volatile__("ldstuba [%1] 1, %0" /* ASI_LEON23_DCACHE_MISS */
+#endif
 			     : "=r" (result)
 			     : "r" (lock)
 			     : "memory");
@@ -84,6 +92,7 @@ static inline void __arch_read_lock(arch_rwlock_t *rw)
 {
 	register arch_rwlock_t *lp asm("g1");
 	lp = rw;
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__(
 	"mov	%%o7, %%g4\n\t"
 	"call	___rw_read_enter\n\t"
@@ -91,6 +100,16 @@ static inline void __arch_read_lock(arch_rwlock_t *rw)
 	: /* no outputs */
 	: "r" (lp)
 	: "g2", "g4", "memory", "cc");
+#else
+	__asm__ __volatile__(
+	"mov	%%o7, %%g4\n\t"
+	"set	3, %%g3\n\t" /* ___rw_read_enter assumes g3 is three! */
+	"call	___rw_read_enter\n\t"
+	" ldstuba	[%%g1 + %%g3]1, %%g2\n"  /* ASI_LEON23_DCACHE_MISS */
+	: /* no outputs */
+	: "r" (lp)
+	: "g2", "g3", "g4", "memory", "cc");
+#endif
 }
 
 #define arch_read_lock(lock) \
@@ -104,6 +123,7 @@ static inline void __arch_read_unlock(arch_rwlock_t *rw)
 {
 	register arch_rwlock_t *lp asm("g1");
 	lp = rw;
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__(
 	"mov	%%o7, %%g4\n\t"
 	"call	___rw_read_exit\n\t"
@@ -111,6 +131,16 @@ static inline void __arch_read_unlock(arch_rwlock_t *rw)
 	: /* no outputs */
 	: "r" (lp)
 	: "g2", "g4", "memory", "cc");
+#else
+	__asm__ __volatile__(
+	"mov	%%o7, %%g4\n\t"
+	"set	3, %%g3\n\t" /* ___rw_read_exit assumes g3 is three! */
+	"call	___rw_read_exit\n\t"
+	" ldstuba	[%%g1 + %%g3] 1, %%g2\n" /* ASI_LEON23_DCACHE_MISS */
+	: /* no outputs */
+	: "r" (lp)
+	: "g2", "g3", "g4", "memory", "cc");
+#endif
 }
 
 #define arch_read_unlock(lock) \
@@ -124,6 +154,7 @@ static inline void arch_write_lock(arch_rwlock_t *rw)
 {
 	register arch_rwlock_t *lp asm("g1");
 	lp = rw;
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__(
 	"mov	%%o7, %%g4\n\t"
 	"call	___rw_write_enter\n\t"
@@ -131,6 +162,16 @@ static inline void arch_write_lock(arch_rwlock_t *rw)
 	: /* no outputs */
 	: "r" (lp)
 	: "g2", "g4", "memory", "cc");
+#else
+	__asm__ __volatile__(
+	"mov	%%o7, %%g4\n\t"
+	"set	3, %%g3\n\t" /* ___rw_write_enter assumes g3 is three! */
+	"call	___rw_write_enter\n\t"
+	" ldstuba	[%%g1 + %%g3] 1, %%g2\n" /* ASI_LEON23_DCACHE_MISS */
+	: /* no outputs */
+	: "r" (lp)
+	: "g2", "g3", "g4", "memory", "cc");
+#endif
 	*(volatile __u32 *)&lp->lock = ~0U;
 }
 
@@ -147,11 +188,18 @@ static inline int arch_write_trylock(arch_rwlock_t *rw)
 {
 	unsigned int val;
 
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__("ldstub [%1 + 3], %0"
 			     : "=r" (val)
 			     : "r" (&rw->lock)
 			     : "memory");
-
+#else
+	__asm__ __volatile__("set	3, %%g3\n\t"
+			     "ldstuba [%1 + %%g3] 1, %0" /* 1=ASI DCACHE_MISS */
+			     : "=r" (val)
+			     : "r" (&rw->lock)
+			     : "g3", "memory");
+#endif
 	if (val == 0) {
 		val = rw->lock & ~0xff;
 		if (val)
@@ -168,6 +216,7 @@ static inline int __arch_read_trylock(arch_rwlock_t *rw)
 	register arch_rwlock_t *lp asm("g1");
 	register int res asm("o0");
 	lp = rw;
+#if !(defined(CONFIG_SPARC_LEON) && defined(CONFIG_SMP))
 	__asm__ __volatile__(
 	"mov	%%o7, %%g4\n\t"
 	"call	___rw_read_try\n\t"
@@ -175,6 +224,16 @@ static inline int __arch_read_trylock(arch_rwlock_t *rw)
 	: "=r" (res)
 	: "r" (lp)
 	: "g2", "g4", "memory", "cc");
+#else
+	__asm__ __volatile__(
+	"mov	%%o7, %%g4\n\t"
+	"set 3, %%g3\n\t" /* __rw_read_try assumes g3 is three! */
+	"call	___rw_read_try\n\t"
+	" ldstuba	[%%g1 + %%g3] 1, %%g2\n" /* 1=ASI DCACHE_MISS */
+	: "=r" (res)
+	: "r" (lp)
+	: "g2", "g3", "g4", "memory", "cc");
+#endif
 	return res;
 }
 
