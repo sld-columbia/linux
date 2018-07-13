@@ -53,6 +53,14 @@ if SPI_MASTER
 
 comment "SPI Master Controller Drivers"
 
+config SPI_SPIMCTRL
+	tristate "Aeroflex Gaisler SPI memory controller"
+	depends on SPARC_LEON
+	select SPI_BITBANG
+	help
+	  This is the driver for Aeroflex Gaisler's SPI memory controller
+	  (SPIMCTRL) found on some LEON/GRLIB SoCs.
+
 config SPI_ALTERA
 	tristate "Altera SPI Controller"
 	select SPI_BITBANG
