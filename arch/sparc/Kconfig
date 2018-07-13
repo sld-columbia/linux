@@ -423,7 +423,7 @@ config SPARC_LEON
 	select USB_EHCI_BIG_ENDIAN_MMIO
 	select USB_EHCI_BIG_ENDIAN_DESC
 	---help---
-	  If you say Y here if you are running on a SPARC-LEON processor.
+	  Say Y here if you are running on a SPARC-LEON processor.
 	  The LEON processor is a synthesizable VHDL model of the
 	  SPARC-v8 standard. LEON is  part of the GRLIB collection of
 	  IP cores that are distributed under GPL. GRLIB can be downloaded
