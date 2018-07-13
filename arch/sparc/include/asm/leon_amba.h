@@ -80,6 +80,7 @@ struct amba_prom_registers {
 
 #define LEON3_IRQMPSTATUS_CPUNR     28
 #define LEON3_IRQMPSTATUS_BROADCAST 27
+#define LEON3_IRQMPAMPCTRL_NCTRL 28
 
 #define GPTIMER_CONFIG_IRQNT(a)          (((a) >> 3) & 0x1f)
 #define GPTIMER_CONFIG_ISSEP(a)          ((a) & (1 << 8))

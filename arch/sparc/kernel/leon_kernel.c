@@ -312,6 +312,7 @@ void __init leon_init_timers(void)
 	int err;
 	u32 config;
 	u32 ctrl;
+	u32 nirqctrl;
 
 	sparc_config.get_cycles_offset = leon_cycles_offset;
 	sparc_config.cs_period = 1000000 / HZ;
@@ -409,9 +410,13 @@ void __init leon_init_timers(void)
 	 * accessed anyway.
 	 * In AMP systems, Linux must run on CPU0 for the time being.
 	 */
-	icsel = LEON3_BYPASS_LOAD_PA(&leon3_irqctrl_regs->icsel[boot_cpu_id/8]);
-	icsel = (icsel >> ((7 - (boot_cpu_id&0x7)) * 4)) & 0xf;
-	leon3_irqctrl_regs += icsel;
+	nirqctrl = LEON3_BYPASS_LOAD_PA(&leon3_irqctrl_regs->ampctrl) >>
+		LEON3_IRQMPAMPCTRL_NCTRL;
+	if (nirqctrl) {
+		icsel = LEON3_BYPASS_LOAD_PA(&leon3_irqctrl_regs->icsel[boot_cpu_id/8]);
+		icsel = (icsel >> ((7 - (boot_cpu_id&0x7)) * 4)) & 0xf;
+		leon3_irqctrl_regs += icsel;
+	}
 
 	/* Mask all IRQs on boot-cpu IRQ controller */
 	LEON3_BYPASS_STORE_PA(&leon3_irqctrl_regs->mask[boot_cpu_id], 0);
