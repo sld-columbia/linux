@@ -1785,7 +1785,7 @@ void __init load_mmu(void)
 	/* El switcheroo... */
 	local_ops = sparc32_cachetlb_ops;
 
-	if (sparc_cpu_model == sun4d || sparc_cpu_model == sparc_leon) {
+	if (sparc_cpu_model == sun4d) {
 		smp_cachetlb_ops.tlb_all = local_ops->tlb_all;
 		smp_cachetlb_ops.tlb_mm = local_ops->tlb_mm;
 		smp_cachetlb_ops.tlb_range = local_ops->tlb_range;

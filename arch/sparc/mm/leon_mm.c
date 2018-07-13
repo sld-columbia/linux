@@ -270,7 +270,7 @@ int __init leon_flush_needed(void)
 void leon_switch_mm(void)
 {
 	srmmu_get_fstatus(); /* errata, must clear FSR.OW to trust next fault */
-	flush_tlb_mm((void *)0);
+	leon_flush_tlb_all();
 	if (leon_flush_during_switch)
 		leon_flush_cache_all();
 }
