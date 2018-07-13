@@ -785,7 +785,18 @@ SUN_PI_(lda	[%l4] ASI_M_MMUREGS, %l5)	! read sfsr last
 	and	%l7, 0x80, %o2		! arg3 = writep from AT
 	bne	1f
 	 mov	%l1, %o3		! arg4 = faulting TEXT address (PC)
+
+#if CONFIG_SPARC_LEON
+	/* LEON errata where FSR must be read to determine text/data trap */
+	and	%l7, 0xc0, %o4
+	cmp	%o4, 0x40
+	bne	1f
+	 andn	%l7, 0xfff, %o3		! arg4 = faulting DATA address
+	mov	1, %o1			! Force text fault even if got DFAULT
+					! arg4 = Leave o3 to be DATA address
+#else
 	andn	%l7, 0xfff, %o3		! arg4 = faulting DATA address
+#endif
 1:
 	wr	%l0, PSR_ET, %psr
 	WRITE_PAUSE

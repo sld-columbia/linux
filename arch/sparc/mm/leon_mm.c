@@ -14,6 +14,7 @@
 #include <asm/asi.h>
 #include <asm/leon.h>
 #include <asm/tlbflush.h>
+#include <asm/pgtsrmmu.h>
 
 #include "mm_32.h"
 
@@ -268,6 +269,7 @@ int __init leon_flush_needed(void)
 
 void leon_switch_mm(void)
 {
+	srmmu_get_fstatus(); /* errata, must clear FSR.OW to trust next fault */
 	flush_tlb_mm((void *)0);
 	if (leon_flush_during_switch)
 		leon_flush_cache_all();
