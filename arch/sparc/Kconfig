@@ -163,6 +163,7 @@ menu "Processor type and features"
 
 config SMP
 	bool "Symmetric multi-processing support"
+	select SPARC_LEON_CAS if SPARC_LEON
 	---help---
 	  This enables support for systems with more than one CPU. If you have
 	  a system with only one CPU, say N. If you have a system with more
@@ -182,6 +183,8 @@ config SMP
 	  available at <http://www.tldp.org/docs.html#howto>.
 
 	  If you don't know what to do here, say N.
+
+	  Enables usage of CAS on LEON systems.
 
 config NR_CPUS
 	int "Maximum number of CPUs"
