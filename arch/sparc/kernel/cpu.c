@@ -200,6 +200,7 @@ static const struct manufacturer_info __initconst manufacturer_info[] = {
 	.fpu_info = {
 		FPU(2, "GRFPU"),
 		FPU(3, "GRFPU-Lite"),
+		FPU(4, "SLDFPU"),
 		FPU(-1, NULL)
 	}
 },{
