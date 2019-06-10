@@ -29,6 +29,7 @@
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/of_irq.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/serial_core.h>
@@ -241,9 +242,9 @@ static void apbuart_set_termios(struct uart_port *port,
 	unsigned int baud, quot;
 
 	/* Ask the core to calculate the divisor for us. */
-	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk / 16);
+	baud = uart_get_baud_rate(port, termios, old, 0, port->uartclk / 8);
 	if (baud == 0)
-		panic("invalid baudrate %i\n", port->uartclk / 16);
+		panic("invalid baudrate %i\n", port->uartclk / 8);
 
 	/* uart_get_divisor calc a *16 uart freq, apbuart is *8 */
 	quot = (uart_get_divisor(port, baud)) * 2;
@@ -451,29 +452,6 @@ apbuart_console_write(struct console *co, const char *s, unsigned int count)
 	UART_PUT_CTRL(port, old_cr);
 }
 
-static void __init
-apbuart_console_get_options(struct uart_port *port, int *baud,
-			    int *parity, int *bits)
-{
-	if (UART_GET_CTRL(port) & (UART_CTRL_RE | UART_CTRL_TE)) {
-
-		unsigned int quot, status;
-		status = UART_GET_STATUS(port);
-
-		*parity = 'n';
-		if (status & UART_CTRL_PE) {
-			if ((status & UART_CTRL_PS) == 0)
-				*parity = 'e';
-			else
-				*parity = 'o';
-		}
-
-		*bits = 8;
-		quot = UART_GET_SCAL(port) / 8;
-		*baud = port->uartclk / (16 * (quot + 1));
-	}
-}
-
 static int __init apbuart_console_setup(struct console *co, char *options)
 {
 	struct uart_port *port;
@@ -499,8 +477,6 @@ static int __init apbuart_console_setup(struct console *co, char *options)
 
 	if (options)
 		uart_parse_options(options, &baud, &parity, &bits, &flow);
-	else
-		apbuart_console_get_options(port, &baud, &parity, &bits);
 
 	return uart_set_options(port, co, baud, parity, bits, flow);
 }
@@ -562,7 +538,7 @@ static int apbuart_probe(struct platform_device *op)
 
 	port = &grlib_apbuart_ports[i];
 	port->dev = &op->dev;
-	port->irq = op->archdata.irqs[0];
+	port->irq = of_irq_get(op->dev.of_node, 0);
 
 	uart_add_one_port(&grlib_apbuart_driver, (struct uart_port *) port);
 
@@ -579,6 +555,9 @@ static const struct of_device_id apbuart_match[] = {
 	 },
 	{
 	 .name = "01_00c",
+	 },
+	{
+	 .compatible = "gaisler,apbuart",
 	 },
 	{},
 };
@@ -600,24 +579,27 @@ static int __init grlib_apbuart_configure(void)
 
 	for_each_matching_node(np, apbuart_match) {
 		const int *ampopts;
-		const u32 *freq_hz;
+		u32 freq_hz;
 		const struct amba_prom_registers *regs;
 		struct uart_port *port;
 		unsigned long addr;
+		struct resource resource;
+		int ret;
 
 		ampopts = of_get_property(np, "ampopts", NULL);
 		if (ampopts && (*ampopts == 0))
 			continue; /* Ignore if used by another OS instance */
 		regs = of_get_property(np, "reg", NULL);
 		/* Frequency of APB Bus is frequency of UART */
-		freq_hz = of_get_property(np, "freq", NULL);
+		freq_hz = be32_to_cpup(of_get_property(np, "freq", NULL));
 
-		if (!regs || !freq_hz || (*freq_hz == 0))
+		if (freq_hz == 0)
 			continue;
 
 		grlib_apbuart_nodes[line] = np;
 
-		addr = regs->phys_addr;
+		ret = of_address_to_resource(np, 0, &resource);
+		addr = resource.start;
 
 		port = &grlib_apbuart_ports[line];
 
@@ -628,7 +610,7 @@ static int __init grlib_apbuart_configure(void)
 		port->ops = &grlib_apbuart_ops;
 		port->flags = UPF_BOOT_AUTOCONF;
 		port->line = line;
-		port->uartclk = *freq_hz;
+		port->uartclk = freq_hz;
 		port->fifosize = apbuart_scan_fifo_size((struct uart_port *) port, line);
 		line++;
 
