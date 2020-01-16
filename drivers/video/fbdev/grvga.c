@@ -691,7 +691,7 @@ static int grvga_probe(struct platform_device *dev)
 		grvga_mem_size = info->var.xres_virtual * info->var.yres_virtual * info->var.bits_per_pixel/8;
 
 	/* TODO: Probe frame buffer from the bus! */
-	grvga_fix_addr = 0xb0100000;
+	grvga_fix_addr = 0x30100000;
 	if (grvga_fix_addr) {
 		/* Got framebuffer base address from argument list */
 
