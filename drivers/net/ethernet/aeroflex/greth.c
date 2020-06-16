@@ -228,20 +228,15 @@ static void greth_clean_rings(struct greth_private *greth)
 
 	} else { /* 10/100 Mbps MAC */
 
-		for (i = 0; i < GRETH_RXBD_NUM; i++, rx_bdp++) {
-			kfree(greth->rx_bufs[i]);
-			dma_unmap_single(greth->dev,
-					 greth_read_bd(&rx_bdp->addr),
-					 MAX_FRAME_SIZE,
-					 DMA_FROM_DEVICE);
-		}
-		for (i = 0; i < GRETH_TXBD_NUM; i++, tx_bdp++) {
-			kfree(greth->tx_bufs[i]);
-			dma_unmap_single(greth->dev,
-					 greth_read_bd(&tx_bdp->addr),
-					 MAX_FRAME_SIZE,
-					 DMA_TO_DEVICE);
-		}
+		for (i = 0; i < GRETH_RXBD_NUM; i++, rx_bdp++)
+			dma_free_coherent(greth->dev, MAX_FRAME_SIZE,
+					greth->rx_bufs[i],
+					greth_read_bd(&rx_bdp->addr));
+
+		for (i = 0; i < GRETH_TXBD_NUM; i++, tx_bdp++)
+			dma_free_coherent(greth->dev, MAX_FRAME_SIZE,
+					greth->tx_bufs[i],
+					greth_read_bd(&tx_bdp->addr));
 	}
 }
 
@@ -286,7 +281,9 @@ static int greth_init_rings(struct greth_private *greth)
 		/* 10/100 MAC uses a fixed set of buffers and copy to/from SKBs */
 		for (i = 0; i < GRETH_RXBD_NUM; i++) {
 
-			greth->rx_bufs[i] = kmalloc(MAX_FRAME_SIZE, GFP_KERNEL);
+			greth->rx_bufs[i] = dma_alloc_coherent(greth->dev, MAX_FRAME_SIZE,
+							(dma_addr_t *) &dma_addr,
+							GFP_KERNEL);
 
 			if (greth->rx_bufs[i] == NULL) {
 				if (netif_msg_ifup(greth))
@@ -294,22 +291,14 @@ static int greth_init_rings(struct greth_private *greth)
 				goto cleanup;
 			}
 
-			dma_addr = dma_map_single(greth->dev,
-						  greth->rx_bufs[i],
-						  MAX_FRAME_SIZE,
-						  DMA_FROM_DEVICE);
-
-			if (dma_mapping_error(greth->dev, dma_addr)) {
-				if (netif_msg_ifup(greth))
-					dev_err(greth->dev, "Could not create initial DMA mapping\n");
-				goto cleanup;
-			}
 			greth_write_bd(&rx_bd[i].addr, dma_addr);
 			greth_write_bd(&rx_bd[i].stat, GRETH_BD_EN | GRETH_BD_IE);
 		}
 		for (i = 0; i < GRETH_TXBD_NUM; i++) {
 
-			greth->tx_bufs[i] = kmalloc(MAX_FRAME_SIZE, GFP_KERNEL);
+			greth->tx_bufs[i] = dma_alloc_coherent(greth->dev, MAX_FRAME_SIZE,
+							(dma_addr_t *) &dma_addr,
+							GFP_KERNEL);
 
 			if (greth->tx_bufs[i] == NULL) {
 				if (netif_msg_ifup(greth))
@@ -317,16 +306,6 @@ static int greth_init_rings(struct greth_private *greth)
 				goto cleanup;
 			}
 
-			dma_addr = dma_map_single(greth->dev,
-						  greth->tx_bufs[i],
-						  MAX_FRAME_SIZE,
-						  DMA_TO_DEVICE);
-
-			if (dma_mapping_error(greth->dev, dma_addr)) {
-				if (netif_msg_ifup(greth))
-					dev_err(greth->dev, "Could not create initial DMA mapping\n");
-				goto cleanup;
-			}
 			greth_write_bd(&tx_bd[i].addr, dma_addr);
 			greth_write_bd(&tx_bd[i].stat, 0);
 		}
@@ -447,18 +426,14 @@ greth_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	dma_addr = greth_read_bd(&bdp->addr);
 
-#ifdef __riscv
 	/* Workaround to fix little vs. big endian */
 	WARN_ON(dma_addr % 4);
-	dma_dst = (unsigned char *) phys_to_virt(dma_addr);
+	dma_dst = (unsigned char *) greth->tx_bufs[greth->tx_next];
 	dma_src = (unsigned char *) skb->data;
 
 	for (i = 0; i < (skb->len + 3) >> 2; i++)
 		for (j = 0; j < 4; j++)
 			dma_dst[(i << 2) + j] = dma_src[(i << 2) + 3 - j];
-#else
-	memcpy((unsigned char *) phys_to_virt(dma_addr), skb->data, skb->len);
-#endif
 
 	dma_sync_single_for_device(greth->dev, dma_addr, skb->len, DMA_TO_DEVICE);
 
@@ -860,16 +835,11 @@ static int greth_rx(struct net_device *dev, int limit)
 							DMA_FROM_DEVICE);
 
 				if (netif_msg_pktdata(greth))
-					greth_print_rx_packet(phys_to_virt(dma_addr), pkt_len);
+					greth_print_rx_packet(greth->rx_bufs[greth->rx_cur], pkt_len);
 
-#ifdef __riscv
 				WARN_ON(dma_addr % 4);
-				skb_put_data_word_rev(skb, phys_to_virt(dma_addr),
+				skb_put_data_word_rev(skb, greth->rx_bufs[greth->rx_cur],
 						pkt_len);
-#else
-				skb_put_data(skb, phys_to_virt(dma_addr),
-					     pkt_len);
-#endif
 
 				skb->protocol = eth_type_trans(skb, dev);
 				dev->stats.rx_bytes += pkt_len;
